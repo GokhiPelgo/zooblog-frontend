@@ -1,0 +1,93 @@
+---
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+
+export async function getStaticPaths() {
+  const API = import.meta.env.PUBLIC_API_URL ?? "http://localhost:8000";
+  const langs = ["es", "en"] as const;
+  const paths: { params: { lang: string; slug: string } }[] = [];
+
+  for (const lang of langs) {
+    try {
+      const res = await fetch(`${API}/api/tutorials?lang=${lang}`, {
+        headers: { Accept: "application/json" },
+      });
+      if (!res.ok) continue;
+      const list = await res.json();
+      for (const tut of list) {
+        paths.push({ params: { lang, slug: tut.slug } });
+      }
+    } catch {
+      // backend no disponible en build: no se generan páginas
+    }
+  }
+
+  return paths;
+}
+
+const lang = Astro.params.lang as "es" | "en";
+const slug = Astro.params.slug as string;
+const API = import.meta.env.PUBLIC_API_URL ?? "http://localhost:8000";
+
+// Resuelve la imagen: URL completa tal cual; ruta relativa → /storage del backend.
+function resolveImg(img?: string | null): string | null {
+  if (!img) return null;
+  if (img.startsWith("http")) return img;
+  const clean = img.replace(/^\/+/, "").replace(/^storage\//, "");
+  return `${API}/storage/${clean}`;
+}
+
+let tutorial: any = null;
+try {
+  const res = await fetch(`${API}/api/tutorials/${slug}?lang=${lang}`, {
+    headers: { Accept: "application/json" },
+  });
+  if (res.ok) tutorial = await res.json();
+} catch {
+  tutorial = null;
+}
+
+if (!tutorial) {
+  return Astro.redirect(`/${lang}/tutoriales`);
+}
+
+const switchUrl = `/${lang === "es" ? "en" : "es"}/tutoriales`;
+const date = tutorial.published_at
+  ? new Date(tutorial.published_at).toLocaleDateString(lang === "es" ? "es-MX" : "en-US")
+  : "";
+---
+
+<BaseLayout
+  title={`${tutorial.title} | ZOOBLOG`}
+  description={tutorial.excerpt ?? undefined}
+  ogImage={resolveImg(tutorial.cover_image) ?? undefined}
+  switchUrl={switchUrl}
+>
+  <section class="bg-gradient-to-br from-emerald-50 via-white to-sky-50">
+    <div class="mx-auto max-w-4xl px-6 py-20 text-center">
+      {tutorial.level && (
+        <span class="inline-flex rounded-full bg-emerald-100 px-4 py-2 text-sm font-black text-emerald-700">
+          {tutorial.level}
+        </span>
+      )}
+      <p class="mt-6 text-sm font-black uppercase tracking-[0.25em] text-slate-500">{date}</p>
+      <h1 class="mt-4 text-5xl font-black leading-tight tracking-tight text-slate-950 md:text-6xl">
+        {tutorial.title}
+      </h1>
+      {tutorial.excerpt && (
+        <p class="mx-auto mt-6 max-w-2xl text-xl leading-9 text-slate-600">{tutorial.excerpt}</p>
+      )}
+    </div>
+
+    {resolveImg(tutorial.cover_image) && (
+      <div class="mx-auto max-w-5xl px-6">
+        <img src={resolveImg(tutorial.cover_image)} alt={tutorial.title} class="w-full rounded-[2rem] object-cover" />
+      </div>
+    )}
+  </section>
+
+  <section class="bg-white">
+    <div class="mx-auto max-w-3xl px-6 py-20">
+      <article class="article-content" set:html={tutorial.content ?? ""} />
+    </div>
+  </section>
+</BaseLayout>

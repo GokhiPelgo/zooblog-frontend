@@ -1,0 +1,89 @@
+---
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+
+export function getStaticPaths() {
+  return [{ params: { lang: "es" } }, { params: { lang: "en" } }];
+}
+
+const lang = Astro.params.lang as "es" | "en";
+const API = import.meta.env.PUBLIC_API_URL ?? "http://localhost:8000";
+
+// Resuelve la imagen: si es URL completa la deja; si es ruta relativa
+// (archivo subido en Filament) la apunta al /storage del backend.
+function resolveImg(img?: string | null): string | null {
+  if (!img) return null;
+  if (img.startsWith("http")) return img;
+  const clean = img.replace(/^\/+/, "").replace(/^storage\//, "");
+  return `${API}/storage/${clean}`;
+}
+
+let tutorials: any[] = [];
+try {
+  const res = await fetch(`${API}/api/tutorials?lang=${lang}`, {
+    headers: { Accept: "application/json" },
+  });
+  if (res.ok) tutorials = await res.json();
+} catch {
+  tutorials = [];
+}
+
+const copy = {
+  es: {
+    eyebrow: "Tutoriales",
+    title: "Tutoriales",
+    subtitle: "Guías paso a paso del mundo animal.",
+    empty: "Aún no hay tutoriales publicados.",
+    read: "Leer tutorial",
+  },
+  en: {
+    eyebrow: "Tutorials",
+    title: "Tutorials",
+    subtitle: "Step-by-step guides from the animal world.",
+    empty: "No tutorials published yet.",
+    read: "Read tutorial",
+  },
+}[lang];
+
+const switchUrl = lang === "es" ? "/en/tutoriales" : "/es/tutoriales";
+---
+
+<BaseLayout title={`${copy.title} | ZOOBLOG`} description={copy.subtitle} switchUrl={switchUrl}>
+  <section class="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-sky-50 px-6 py-24">
+    <div class="mx-auto max-w-6xl">
+      <div data-scroll-reveal class="mb-14 max-w-3xl">
+        <span class="inline-flex rounded-full bg-emerald-100 px-4 py-2 text-sm font-bold text-emerald-700">
+          {copy.eyebrow}
+        </span>
+        <h1 class="mt-6 text-5xl font-black tracking-tight text-slate-950 md:text-6xl">
+          {copy.title}
+        </h1>
+        <p class="mt-6 text-lg leading-8 text-slate-600">{copy.subtitle}</p>
+      </div>
+
+      {tutorials.length === 0 ? (
+        <p class="text-slate-500">{copy.empty}</p>
+      ) : (
+        <div class="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+          {tutorials.map((tut) => (
+            <a
+              href={`/${lang}/tutoriales/${tut.slug}`}
+              class="group block overflow-hidden rounded-3xl border border-emerald-100 bg-white shadow-lg shadow-emerald-900/5 transition hover:-translate-y-1"
+            >
+              {resolveImg(tut.cover_image) && (
+                <img src={resolveImg(tut.cover_image)} alt={tut.title} class="aspect-[16/9] w-full object-cover" />
+              )}
+              <div class="p-6">
+                {tut.level && (
+                  <span class="text-xs font-black uppercase tracking-wider text-emerald-600">{tut.level}</span>
+                )}
+                <h2 class="mt-2 text-xl font-black text-slate-950 group-hover:text-emerald-700">{tut.title}</h2>
+                {tut.excerpt && <p class="mt-3 text-sm leading-6 text-slate-600">{tut.excerpt}</p>}
+                <span class="mt-4 inline-flex text-sm font-bold text-emerald-700">{copy.read} →</span>
+              </div>
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
+  </section>
+</BaseLayout>
