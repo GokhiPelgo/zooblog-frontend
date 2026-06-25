@@ -1,0 +1,64 @@
+---
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+
+export function getStaticPaths() {
+  return [{ params: { lang: "es" } }, { params: { lang: "en" } }];
+}
+
+const lang = Astro.params.lang as "es" | "en";
+const switchUrl = lang === "es" ? "/en/tutoriales" : "/es/tutoriales";
+const API = import.meta.env.PUBLIC_API_URL ?? "http://localhost:8000";
+const loadingText = lang === "es" ? "Cargando…" : "Loading…";
+const notFoundText = lang === "es" ? "Tutorial no encontrado." : "Tutorial not found.";
+---
+
+<BaseLayout title="Tutorial | ZOOBLOG" switchUrl={switchUrl}>
+  <section class="bg-white">
+    <div class="mx-auto max-w-3xl px-6 py-20">
+      <article id="tut-content" class="article-content"></article>
+      <p id="tut-status" class="text-slate-500">{loadingText}</p>
+    </div>
+  </section>
+
+  <script define:vars={{ API, lang, notFoundText }}>
+    const slug = new URLSearchParams(location.search).get("slug");
+    const content = document.getElementById("tut-content");
+    const status = document.getElementById("tut-status");
+
+    function resolveImg(img) {
+      if (!img) return null;
+      if (img.startsWith("http")) return img;
+      const clean = img.replace(/^\/+/, "").replace(/^storage\//, "");
+      return `${API}/storage/${clean}`;
+    }
+
+    (async () => {
+      if (!slug) {
+        location.href = `/${lang}/tutoriales`;
+        return;
+      }
+      try {
+        const res = await fetch(`${API}/api/tutorials/${encodeURIComponent(slug)}?lang=${lang}`, {
+          headers: { Accept: "application/json" },
+        });
+        if (!res.ok) {
+          status.textContent = notFoundText;
+          return;
+        }
+        const t = await res.json();
+        document.title = `${t.title} | ZOOBLOG`;
+        const img = resolveImg(t.cover_image);
+        status.style.display = "none";
+        content.innerHTML = `
+          ${t.level ? `<span class="inline-flex rounded-full bg-emerald-100 px-4 py-2 text-sm font-black text-emerald-700">${t.level}</span>` : ""}
+          <h1 class="mt-6 text-4xl font-black leading-tight tracking-tight text-slate-950 md:text-5xl">${t.title}</h1>
+          ${t.excerpt ? `<p class="mt-4 text-lg leading-8 text-slate-600">${t.excerpt}</p>` : ""}
+          ${img ? `<img src="${img}" alt="${t.title}" class="mt-8 w-full rounded-[2rem] object-cover" />` : ""}
+          <div class="mt-8">${t.content ?? ""}</div>
+        `;
+      } catch {
+        status.textContent = notFoundText;
+      }
+    })();
+  </script>
+</BaseLayout>
