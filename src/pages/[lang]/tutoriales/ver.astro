@@ -8,20 +8,35 @@ export function getStaticPaths() {
 const lang = Astro.params.lang as "es" | "en";
 const switchUrl = lang === "es" ? "/en/tutoriales" : "/es/tutoriales";
 const API = import.meta.env.PUBLIC_API_URL ?? "http://localhost:8000";
-const loadingText = lang === "es" ? "Cargando…" : "Loading…";
-const notFoundText = lang === "es" ? "Tutorial no encontrado." : "Tutorial not found.";
+
+const copy = {
+  es: { back: "← Tutoriales", loading: "Cargando…", notFound: "Tutorial no encontrado." },
+  en: { back: "← Tutorials", loading: "Loading…", notFound: "Tutorial not found." },
+}[lang];
 ---
 
 <BaseLayout title="Tutorial | ZOOBLOG" switchUrl={switchUrl}>
+  <section class="bg-gradient-to-br from-indigo-50 via-white to-sky-50">
+    <div class="mx-auto max-w-4xl px-6 pt-12 pb-10 text-center">
+      <a href={`/${lang}/tutoriales`} class="inline-flex text-sm font-bold text-indigo-700 hover:text-indigo-900">
+        {copy.back}
+      </a>
+      <div id="tut-hero" class="mt-8"></div>
+    </div>
+    <div id="tut-image" class="mx-auto max-w-5xl px-6"></div>
+  </section>
+
   <section class="bg-white">
-    <div class="mx-auto max-w-3xl px-6 py-20">
+    <div class="mx-auto max-w-3xl px-6 py-16">
       <article id="tut-content" class="article-content"></article>
-      <p id="tut-status" class="text-slate-500">{loadingText}</p>
+      <p id="tut-status" class="text-slate-500">{copy.loading}</p>
     </div>
   </section>
 
-  <script define:vars={{ API, lang, notFoundText }}>
+  <script define:vars={{ API, lang, copy }}>
     const slug = new URLSearchParams(location.search).get("slug");
+    const hero = document.getElementById("tut-hero");
+    const imageBox = document.getElementById("tut-image");
     const content = document.getElementById("tut-content");
     const status = document.getElementById("tut-status");
 
@@ -42,22 +57,27 @@ const notFoundText = lang === "es" ? "Tutorial no encontrado." : "Tutorial not f
           headers: { Accept: "application/json" },
         });
         if (!res.ok) {
-          status.textContent = notFoundText;
+          status.textContent = copy.notFound;
           return;
         }
         const t = await res.json();
         document.title = `${t.title} | ZOOBLOG`;
-        const img = resolveImg(t.cover_image);
-        status.style.display = "none";
-        content.innerHTML = `
-          ${t.level ? `<span class="inline-flex rounded-full bg-emerald-100 px-4 py-2 text-sm font-black text-emerald-700">${t.level}</span>` : ""}
+
+        hero.innerHTML = `
+          ${t.level ? `<span class="inline-flex rounded-full bg-indigo-600 px-4 py-1.5 text-xs font-black uppercase tracking-wide text-white">${t.level}</span>` : ""}
           <h1 class="mt-6 text-4xl font-black leading-tight tracking-tight text-slate-950 md:text-5xl">${t.title}</h1>
-          ${t.excerpt ? `<p class="mt-4 text-lg leading-8 text-slate-600">${t.excerpt}</p>` : ""}
-          ${img ? `<img src="${img}" alt="${t.title}" class="mt-8 w-full rounded-[2rem] object-cover" />` : ""}
-          <div class="mt-8">${t.content ?? ""}</div>
+          ${t.excerpt ? `<p class="mx-auto mt-5 max-w-2xl text-lg leading-8 text-slate-600">${t.excerpt}</p>` : ""}
         `;
+
+        const img = resolveImg(t.cover_image);
+        if (img) {
+          imageBox.innerHTML = `<img src="${img}" alt="${t.title}" class="w-full rounded-[2rem] object-cover shadow-xl shadow-indigo-900/10" />`;
+        }
+
+        status.style.display = "none";
+        content.innerHTML = t.content ?? "";
       } catch {
-        status.textContent = notFoundText;
+        status.textContent = copy.notFound;
       }
     })();
   </script>

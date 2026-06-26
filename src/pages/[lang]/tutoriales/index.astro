@@ -9,18 +9,22 @@ const lang = Astro.params.lang as "es" | "en";
 
 const copy = {
   es: {
-    eyebrow: "Tutoriales",
+    eyebrow: "📚 Guías paso a paso",
     title: "Tutoriales",
-    subtitle: "Guías paso a paso del mundo animal.",
-    empty: "Aún no hay tutoriales publicados.",
+    subtitle: "Aprende a cuidar y entender a los animales con guías claras y prácticas.",
+    search: "Buscar tutorial por título...",
+    all: "Todos",
+    empty: "No encontramos tutoriales con esa búsqueda.",
     loading: "Cargando tutoriales…",
     read: "Leer tutorial",
   },
   en: {
-    eyebrow: "Tutorials",
+    eyebrow: "📚 Step-by-step guides",
     title: "Tutorials",
-    subtitle: "Step-by-step guides from the animal world.",
-    empty: "No tutorials published yet.",
+    subtitle: "Learn to care for and understand animals with clear, practical guides.",
+    search: "Search tutorial by title...",
+    all: "All",
+    empty: "No tutorials found for that search.",
     loading: "Loading tutorials…",
     read: "Read tutorial",
   },
@@ -31,24 +35,49 @@ const API = import.meta.env.PUBLIC_API_URL ?? "http://localhost:8000";
 ---
 
 <BaseLayout title={`${copy.title} | ZOOBLOG`} description={copy.subtitle} switchUrl={switchUrl}>
-  <section class="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-sky-50 px-6 py-24">
-    <div class="mx-auto max-w-6xl">
-      <div class="mb-14 max-w-3xl">
-        <span class="inline-flex rounded-full bg-emerald-100 px-4 py-2 text-sm font-bold text-emerald-700">
+  <section class="relative min-h-screen overflow-hidden bg-gradient-to-br from-indigo-50 via-white to-sky-50">
+    <div class="mx-auto max-w-7xl px-6 py-20">
+
+      <!-- HERO -->
+      <div data-scroll-reveal class="max-w-3xl">
+        <span class="inline-flex items-center rounded-full bg-indigo-100 px-4 py-2 text-sm font-bold text-indigo-700">
           {copy.eyebrow}
         </span>
-        <h1 class="mt-6 text-5xl font-black tracking-tight text-slate-950 md:text-6xl">{copy.title}</h1>
-        <p class="mt-6 text-lg leading-8 text-slate-600">{copy.subtitle}</p>
+        <h1 data-hero-title class="mt-6 text-5xl font-black tracking-tight text-slate-950 md:text-6xl">
+          {copy.title}
+        </h1>
+        <p class="mt-6 max-w-2xl text-lg leading-8 text-slate-600">{copy.subtitle}</p>
       </div>
 
-      <div id="tut-grid" class="grid gap-8 md:grid-cols-2 lg:grid-cols-3"></div>
-      <p id="tut-status" class="text-slate-500">{copy.loading}</p>
+      <!-- BUSCADOR -->
+      <div data-scroll-reveal class="mt-10">
+        <input
+          id="tut-search"
+          type="search"
+          placeholder={copy.search}
+          class="w-full rounded-3xl border border-slate-200 bg-white/90 px-6 py-5 text-lg text-slate-900 shadow-lg shadow-indigo-100/50 backdrop-blur outline-none transition focus:border-indigo-600 focus:ring-4 focus:ring-indigo-100"
+        />
+      </div>
+
+      <!-- CATEGORÍAS (NIVEL) -->
+      <div id="tut-categories" data-scroll-reveal class="mt-8 flex flex-wrap gap-3"></div>
+
+      <!-- GRID -->
+      <div id="tut-grid" class="mt-12 grid gap-8 md:grid-cols-2 lg:grid-cols-3"></div>
+      <p id="tut-status" class="mt-10 text-slate-500">{copy.loading}</p>
+
     </div>
   </section>
 
   <script define:vars={{ API, lang, copy }}>
     const grid = document.getElementById("tut-grid");
     const status = document.getElementById("tut-status");
+    const searchInput = document.getElementById("tut-search");
+    const catBar = document.getElementById("tut-categories");
+
+    let all = [];
+    let query = "";
+    let level = "__all__";
 
     function resolveImg(img) {
       if (!img) return null;
@@ -57,34 +86,76 @@ const API = import.meta.env.PUBLIC_API_URL ?? "http://localhost:8000";
       return `${API}/storage/${clean}`;
     }
 
+    function cardHtml(t) {
+      const img = resolveImg(t.cover_image);
+      return `<a href="/${lang}/tutoriales/ver?slug=${encodeURIComponent(t.slug)}"
+        class="group flex flex-col overflow-hidden rounded-3xl border border-indigo-100 bg-white shadow-lg shadow-indigo-900/5 transition hover:-translate-y-1 hover:shadow-xl">
+        <div class="relative aspect-[16/9] w-full overflow-hidden bg-indigo-50">
+          ${img ? `<img src="${img}" alt="${t.title}" class="h-full w-full object-cover transition duration-500 group-hover:scale-105" />` : ""}
+          ${t.level ? `<span class="absolute left-4 top-4 rounded-full bg-indigo-600 px-3 py-1 text-xs font-black uppercase tracking-wide text-white shadow">${t.level}</span>` : ""}
+        </div>
+        <div class="flex flex-1 flex-col p-6">
+          <h2 class="text-xl font-black leading-snug text-slate-950 group-hover:text-indigo-700">${t.title}</h2>
+          ${t.excerpt ? `<p class="mt-3 line-clamp-3 text-sm leading-6 text-slate-600">${t.excerpt}</p>` : ""}
+          <span class="mt-5 inline-flex items-center gap-1 text-sm font-bold text-indigo-700">${copy.read} &rarr;</span>
+        </div>
+      </a>`;
+    }
+
+    function render() {
+      const list = all.filter((t) => {
+        const text = `${t.title} ${t.excerpt || ""}`.toLowerCase();
+        const okQuery = !query || text.includes(query);
+        const okLevel = level === "__all__" || (t.level || "") === level;
+        return okQuery && okLevel;
+      });
+
+      if (!list.length) {
+        grid.innerHTML = "";
+        status.textContent = copy.empty;
+        status.classList.remove("hidden");
+        return;
+      }
+      status.classList.add("hidden");
+      grid.innerHTML = list.map(cardHtml).join("");
+    }
+
+    function pillClass(active) {
+      return active
+        ? "rounded-full bg-indigo-600 px-5 py-2 text-sm font-bold text-white transition"
+        : "rounded-full border border-slate-200 bg-white px-5 py-2 text-sm font-bold text-slate-600 transition hover:border-indigo-300 hover:text-indigo-700";
+    }
+
+    function renderCategories() {
+      const levels = [...new Set(all.map((t) => t.level).filter(Boolean))];
+      const pills = [{ label: copy.all, value: "__all__" }, ...levels.map((l) => ({ label: l, value: l }))];
+      catBar.innerHTML = pills
+        .map((p) => `<button type="button" data-level="${p.value}" class="${pillClass(p.value === level)}">${p.label}</button>`)
+        .join("");
+      catBar.querySelectorAll("button").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          level = btn.dataset.level;
+          renderCategories();
+          render();
+        });
+      });
+    }
+
+    searchInput?.addEventListener("input", (e) => {
+      query = e.target.value.toLowerCase().trim();
+      render();
+    });
+
     (async () => {
       try {
-        const res = await fetch(`${API}/api/tutorials?lang=${lang}`, {
-          headers: { Accept: "application/json" },
-        });
-        const tutorials = res.ok ? await res.json() : [];
-
-        if (!tutorials.length) {
+        const res = await fetch(`${API}/api/tutorials?lang=${lang}`, { headers: { Accept: "application/json" } });
+        all = res.ok ? await res.json() : [];
+        if (!all.length) {
           status.textContent = copy.empty;
           return;
         }
-
-        status.style.display = "none";
-        grid.innerHTML = tutorials
-          .map((t) => {
-            const img = resolveImg(t.cover_image);
-            return `<a href="/${lang}/tutoriales/ver?slug=${encodeURIComponent(t.slug)}"
-              class="group block overflow-hidden rounded-3xl border border-emerald-100 bg-white shadow-lg shadow-emerald-900/5 transition hover:-translate-y-1">
-              ${img ? `<img src="${img}" alt="${t.title}" class="aspect-[16/9] w-full object-cover" />` : ""}
-              <div class="p-6">
-                ${t.level ? `<span class="text-xs font-black uppercase tracking-wider text-emerald-600">${t.level}</span>` : ""}
-                <h2 class="mt-2 text-xl font-black text-slate-950 group-hover:text-emerald-700">${t.title}</h2>
-                ${t.excerpt ? `<p class="mt-3 text-sm leading-6 text-slate-600">${t.excerpt}</p>` : ""}
-                <span class="mt-4 inline-flex text-sm font-bold text-emerald-700">${copy.read} &rarr;</span>
-              </div>
-            </a>`;
-          })
-          .join("");
+        renderCategories();
+        render();
       } catch {
         status.textContent = copy.empty;
       }
