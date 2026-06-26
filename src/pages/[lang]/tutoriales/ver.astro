@@ -10,8 +10,18 @@ const switchUrl = lang === "es" ? "/en/tutoriales" : "/es/tutoriales";
 const API = import.meta.env.PUBLIC_API_URL ?? "http://localhost:8000";
 
 const copy = {
-  es: { back: "← Tutoriales", loading: "Cargando…", notFound: "Tutorial no encontrado." },
-  en: { back: "← Tutorials", loading: "Loading…", notFound: "Tutorial not found." },
+  es: {
+    back: "← Tutoriales",
+    loading: "Cargando…",
+    notAvailable: "Este tutorial todavía no está disponible en español.",
+    seeAll: "Ver todos los tutoriales",
+  },
+  en: {
+    back: "← Tutorials",
+    loading: "Loading…",
+    notAvailable: "This tutorial is not available in English yet.",
+    seeAll: "See all tutorials",
+  },
 }[lang];
 ---
 
@@ -35,6 +45,7 @@ const copy = {
 
   <script define:vars={{ API, lang, copy }}>
     const slug = new URLSearchParams(location.search).get("slug");
+    const otherLang = lang === "es" ? "en" : "es";
     const hero = document.getElementById("tut-hero");
     const imageBox = document.getElementById("tut-image");
     const content = document.getElementById("tut-content");
@@ -47,6 +58,26 @@ const copy = {
       return `${API}/storage/${clean}`;
     }
 
+    // El cambio de idioma apunta al MISMO tutorial en el otro idioma (por su
+    // propio slug, vía translation_key). Si no hay traducción, apunta al slug
+    // actual en el otro idioma → dará 404 y se mostrará "no disponible".
+    function setSwitch(s) {
+      document.querySelectorAll("[data-lang-switch]").forEach((a) =>
+        a.setAttribute("href", `/${otherLang}/tutoriales/ver?slug=${encodeURIComponent(s)}`)
+      );
+    }
+    if (slug) setSwitch(slug);
+
+    function showNotAvailable() {
+      status.style.display = "none";
+      hero.innerHTML = `
+        <p class="text-lg leading-8 text-slate-600">${copy.notAvailable}</p>
+        <a href="/${lang}/tutoriales"
+           class="mt-6 inline-flex rounded-2xl bg-indigo-600 px-6 py-3 font-bold text-white transition hover:-translate-y-0.5 hover:bg-indigo-700">
+          ${copy.seeAll} &rarr;
+        </a>`;
+    }
+
     (async () => {
       if (!slug) {
         location.href = `/${lang}/tutoriales`;
@@ -57,11 +88,14 @@ const copy = {
           headers: { Accept: "application/json" },
         });
         if (!res.ok) {
-          status.textContent = copy.notFound;
+          showNotAvailable();
           return;
         }
         const t = await res.json();
         document.title = `${t.title} | ZOOBLOG`;
+
+        // Enlaza el cambio de idioma a la traducción real (su slug propio).
+        if (t.alternate_slug) setSwitch(t.alternate_slug);
 
         hero.innerHTML = `
           ${t.level ? `<span class="inline-flex rounded-full bg-indigo-600 px-4 py-1.5 text-xs font-black uppercase tracking-wide text-white">${t.level}</span>` : ""}
@@ -77,7 +111,7 @@ const copy = {
         status.style.display = "none";
         content.innerHTML = t.content ?? "";
       } catch {
-        status.textContent = copy.notFound;
+        showNotAvailable();
       }
     })();
   </script>
