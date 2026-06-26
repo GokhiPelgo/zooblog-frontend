@@ -71,7 +71,7 @@ const copy = {
 
         const img = resolveImg(t.cover_image);
         if (img) {
-          imageBox.innerHTML = `<img src="${img}" alt="${t.title}" class="w-full rounded-[2rem] object-cover shadow-xl shadow-indigo-900/10" />`;
+          imageBox.innerHTML = `<img src="${img}" alt="${t.image_alt || t.title}" class="w-full rounded-[2rem] object-cover shadow-xl shadow-indigo-900/10" />`;
         }
 
         status.style.display = "none";
